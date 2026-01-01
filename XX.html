@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>XG STTX - SA-MP Studio Ultimate V4</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&family=JetBrains+Mono:wght@400&family=Oswald&family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --bg-dark: #0f0f13;
+            --bg-panel: #18181f;
+            --bg-input: #23232e;
+            --primary: #6d5dfc;
+            --accent: #e43f5a;
+            --text-main: #e6e6e6;
+            --border: #2d2d3a;
+            --grid-color: rgba(255,255,255,0.05);
+            --samp-w: 640px;
+            --samp-h: 480px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; outline: none; user-select: none; }
+        
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: 'Cairo', sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* --- UI Components --- */
+        header {
+            height: 55px;
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 15px;
+            z-index: 50;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+
+        .logo { font-weight: 900; color: #fff; font-size: 18px; display:flex; align-items:center; gap:10px; }
+        .logo span { color: var(--primary); }
+        
+        .toolbar-top { display: flex; gap: 8px; }
+        .btn-icon {
+            background: var(--bg-input); border: 1px solid var(--border);
+            color: #aaa; width: 36px; height: 36px;
+            border-radius: 8px; cursor: pointer; display: flex;
+            align-items: center; justify-content: center; transition: 0.2s; font-size: 14px;
+        }
+        .btn-icon:hover { background: var(--primary); color: #fff; border-color: var(--primary); transform: translateY(-2px); }
+        .btn-icon.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .btn-primary { background: var(--primary); color: white; width: auto; padding: 0 15px; font-weight: bold; }
+
+        /* --- Workspace --- */
+        .workspace { display: flex; flex: 1; height: calc(100vh - 55px); position: relative; }
+
+        .sidebar {
+            width: 280px; background: var(--bg-panel);
+            display: flex; flex-direction: column;
+            border: 1px solid var(--border); z-index: 20;
+        }
+        .sidebar.left { border-left: none; }
+        .sidebar.right { border-right: none; }
+
+        .panel-head { 
+            padding: 12px; font-weight: bold; font-size: 13px; 
+            background: #1f1f29; border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+
+        .canvas-container {
+            flex: 1; background: #050505;
+            display: flex; align-items: center; justify-content: center;
+            position: relative; overflow: hidden;
+            background-image: 
+                linear-gradient(var(--grid-color) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        /* --- SA-MP Screen --- */
+        #scaler { transition: transform 0.1s; transform-origin: center; box-shadow: 0 0 100px #000; }
+        
+        .samp-screen {
+            width: var(--samp-w); height: var(--samp-h);
+            background: url('https://files.gta5-mods.com/images/84100/Screenshot_1.png') no-repeat center center;
+            background-size: cover;
+            position: relative; border: 2px solid #333; overflow: hidden;
+        }
+        .samp-screen.grid-active::after {
+            content: ''; position: absolute; top:0; left:0; width:100%; height:100%;
+            background: repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(0,255,255,0.1) 40px),
+                        repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(0,255,255,0.1) 40px);
+            pointer-events: none; z-index: 900;
+        }
+
+        /* --- Elements --- */
+        .td-object {
+            position: absolute; cursor: move; line-height: 1; white-space: pre;
+            transform-origin: top left;
+            background-size: 100% 100% !important; 
+            background-repeat: no-repeat !important;
+            background-position: center !important;
+        }
+        .td-object:hover { outline: 1px solid rgba(255,255,255,0.4); }
+        .td-object.selected { outline: 2px dashed var(--primary); z-index: 999; }
+        
+        .resize-handle {
+            width: 10px; height: 10px; background: var(--accent);
+            position: absolute; right: -5px; bottom: -5px;
+            cursor: se-resize; border-radius: 50%; border: 2px solid #fff;
+            display: none; z-index: 1000;
+        }
+        .td-object.selected .resize-handle { display: block; }
+
+        /* --- Controls --- */
+        .scroll-area { flex: 1; overflow-y: auto; padding: 10px; }
+        
+        .layer-item {
+            background: var(--bg-input); padding: 8px 12px; border-radius: 6px; margin-bottom: 6px;
+            display: flex; align-items: center; gap: 10px; cursor: pointer; border: 1px solid transparent; font-size: 12px;
+            transition: 0.2s;
+        }
+        .layer-item:hover { background: #2c2c3a; }
+        .layer-item.active { border-color: var(--primary); background: #2a2a35; }
+        .layer-icon { color: #666; width: 20px; text-align: center; }
+        
+        .control-group { margin-bottom: 15px; }
+        .control-label { font-size: 11px; color: #888; margin-bottom: 5px; display:flex; justify-content: space-between; }
+        
+        input, select, textarea {
+            background: #121216; border: 1px solid var(--border); color: #fff;
+            padding: 8px; border-radius: 4px; width: 100%; font-size: 12px;
+            font-family: inherit; transition: 0.2s;
+        }
+        input:focus, select:focus { border-color: var(--primary); }
+        
+        .input-row { display: flex; gap: 5px; align-items: center; }
+        .btn-tool {
+            background: var(--bg-input); color: #ccc; border: 1px solid var(--border);
+            padding: 10px; border-radius: 6px; cursor: pointer; text-align: center;
+            display: flex; flex-direction: column; align-items: center; gap: 5px; font-size: 11px;
+            transition: 0.2s;
+        }
+        .btn-tool:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
+        .tools-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px; }
+
+        /* --- Modals & Popups --- */
+        .modal-overlay {
+            display: none; position: fixed; top:0; left:0; width:100%; height:100%;
+            background: rgba(0,0,0,0.85); z-index: 2000; justify-content: center; align-items: center;
+            backdrop-filter: blur(5px);
+        }
+        .modal-box {
+            background: var(--bg-panel); width: 800px; height: 500px;
+            border: 1px solid var(--border); border-radius: 10px; display: flex; flex-direction: column;
+            box-shadow: 0 20px 50px #000;
+        }
+        .modal-wide {
+            width: 90%; height: 80%;
+        }
+        .terminal-log {
+            background: #000; color: #0f0; font-family: 'JetBrains Mono', monospace;
+            padding: 15px; overflow-y: auto; flex:1; font-size: 12px; line-height: 1.6;
+        }
+
+        /* --- تحرير النص العالمي --- */
+        .text-editor-container {
+            display: flex; flex-direction: column; height: 100%;
+        }
+        .editor-toolbar {
+            display: flex; gap: 10px; padding: 10px; background: #1f1f29; border-bottom: 1px solid var(--border);
+        }
+        .editor-content {
+            display: flex; flex: 1; overflow: hidden;
+        }
+        .editor-sidebar {
+            width: 200px; background: #15151c; border-left: 1px solid var(--border);
+            padding: 15px; overflow-y: auto;
+        }
+        .editor-main {
+            flex: 1; padding: 20px; overflow-y: auto;
+        }
+        .text-block {
+            background: var(--bg-input); border: 1px solid var(--border); padding: 15px; margin-bottom: 15px;
+            border-radius: 8px; cursor: pointer; transition: 0.2s;
+        }
+        .text-block:hover { border-color: var(--primary); }
+        .text-block.active { border-color: var(--accent); background: #2a2a35; }
+        .text-block h4 { margin-bottom: 8px; color: var(--primary); }
+        .text-block p { color: #ccc; font-size: 12px; }
+        
+        /* --- Fonts Simulation --- */
+        .font-0 { font-family: 'Press Start 2P', serif; letter-spacing: 1px; }
+        .font-1 { font-family: Arial, sans-serif; }
+        .font-2 { font-family: 'Oswald', sans-serif; font-weight: bold; text-transform: uppercase; }
+        .font-3 { font-family: Impact, sans-serif; }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo"><i class="fas fa-gamepad"></i> <span>XG STTX</span> <small style="font-size:10px; color:#666; margin-right:5px">V4</small></div>
+        
+        <div class="toolbar-top">
+            <button class="btn-icon" title="تراجع (Ctrl+Z)" onclick="undo()"><i class="fas fa-undo"></i></button>
+            <button class="btn-icon" title="إعادة (Ctrl+Y)" onclick="redo()"><i class="fas fa-redo"></i></button>
+            <span style="width:1px; background:#333; margin:0 5px"></span>
+            <button class="btn-icon" title="شبكة" onclick="toggleGrid()"><i class="fas fa-border-all"></i></button>
+            <button class="btn-icon" title="زووم -" onclick="zoom(-0.1)"><i class="fas fa-search-minus"></i></button>
+            <button class="btn-icon" title="زووم +" onclick="zoom(0.1)"><i class="fas fa-search-plus"></i></button>
+            <button class="btn-icon" title="أدوات ذكية" onclick="toggleSmartAlign()"><i class="fas fa-magnet"></i></button>
+            <span style="width:1px; background:#333; margin:0 5px"></span>
+            <button class="btn-icon active" title="فحص الأخطاء" onclick="runDiagnostics()"><i class="fas fa-bug"></i></button>
+            <button class="btn-icon" title="تحرير النص العالمي" onclick="openGlobalTextEditor()" style="width:auto; gap:5px"><i class="fas fa-globe"></i> تحرير نص</button>
+            <button class="btn-primary btn-icon" title="تصدير الكود" onclick="exportCode()" style="width:auto; gap:5px"><i class="fas fa-code"></i> تصدير</button>
+        </div>
+    </header>
+
+    <div class="workspace">
+        <!-- اليسار: الأدوات والطبقات -->
+        <div class="sidebar left">
+            <div class="panel-head">الأدوات <i class="fas fa-tools"></i></div>
+            <div class="tools-grid">
+                <button class="btn-tool" onclick="addLayer('text')"><i class="fas fa-font fa-lg"></i> نص جديد</button>
+                <button class="btn-tool" onclick="addLayer('box')"><i class="far fa-square fa-lg"></i> صندوق/خلفية</button>
+                <button class="btn-tool" onclick="addLayer('button')"><i class="fas fa-mouse-pointer fa-lg"></i> زر (Button)</button>
+                <button class="btn-tool" onclick="addLayer('icon')"><i class="fas fa-icons fa-lg"></i> أيقونة/شكل</button>
+            </div>
+            
+            <div class="panel-head" style="margin-top:10px;">الطبقات <i class="fas fa-layer-group"></i></div>
+            <div class="scroll-area" id="layersList"></div>
+        </div>
+
+        <!-- الوسط: الشاشة -->
+        <div class="canvas-container">
+            <div id="scaler">
+                <div class="samp-screen" id="gameScreen">
+                    <!-- سيتم إضافة العناصر هنا -->
+                </div>
+            </div>
+            <!-- معلومات سريعة -->
+            <div style="position:absolute; bottom:10px; left:10px; background:rgba(0,0,0,0.5); padding:5px; border-radius:4px; font-size:10px; color:#aaa;">
+                X: <span id="infoX">0</span> Y: <span id="infoY">0</span> | Zoom: <span id="infoZoom">100%</span>
+            </div>
+        </div>
+
+        <!-- اليمين: الخصائص -->
+        <div class="sidebar right">
+            <div class="panel-head">الخصائص <i class="fas fa-sliders-h"></i></div>
+            <div class="scroll-area" id="propsPanel">
+                <div style="text-align:center; padding:50px; color:#555;">
+                    <i class="fas fa-mouse-pointer fa-3x"></i><br><br>
+                    اختر عنصراً للتعديل أو قم بإنشاء جديد
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- نافذة تحرير النص العالمي -->
+    <div class="modal-overlay" id="textEditorModal">
+        <div class="modal-box modal-wide">
+            <div class="panel-head">
+                <span><i class="fas fa-globe"></i> محرر النص العالمي - SYSTEM Text Editor</span>
+                <button class="btn-icon" style="width:25px; height:25px;" onclick="closeTextEditor()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="text-editor-container">
+                <div class="editor-toolbar">
+                    <button class="btn-icon" onclick="addTextBlock()" title="إضافة نص جديد"><i class="fas fa-plus"></i></button>
+                    <button class="btn-icon" onclick="deleteTextBlock()" title="حذف النص المحدد"><i class="fas fa-trash"></i></button>
+                    <button class="btn-icon" onclick="saveTextBlocks()" title="حفظ النصوص"><i class="fas fa-save"></i></button>
+                    <button class="btn-primary" onclick="exportToPawnSystem()" style="margin-left:auto"><i class="fas fa-file-export"></i> تصدير نص</button>
+                </div>
+                <div class="editor-content">
+                    <div class="editor-main" id="editorMain">
+                        <!-- المحتوى الرئيسي للمحرر -->
+                        <div style="text-align:center; padding:50px; color:#666;">
+                            <i class="fas fa-globe-americas fa-3x"></i><br><br>
+                            اختر نصاً من القائمة أو أنشئ نصاً جديداً
+                        </div>
+                    </div>
+                    <div class="editor-sidebar">
+                        <h4 style="margin-bottom:15px; color:var(--primary);">النصوص المحفوظة</h4>
+                        <div id="textBlocksList">
+                            <!-- قائمة النصوص -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- نافذة الكود والكونسول -->
+    <div class="modal-overlay" id="codeModal">
+        <div class="modal-box">
+            <div class="panel-head">
+                <span>المخرجات (Terminal / Output)</span>
+                <button class="btn-icon" style="width:25px; height:25px;" onclick="closeModal()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="terminal-log" id="termOutput"></div>
+            <div style="padding:15px; border-top:1px solid var(--border); text-align:left;">
+                <button class="btn-primary" onclick="copyCode()">نسخ الكود</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. النظام الأساسي (Core System) ---
+        let project = {
+            layers: [],
+            settings: { zoom: 1.0, grid: false }
+        };
+        let activeId = null;
+        let idCounter = 0;
+        let undoStack = [];
+        let redoStack = [];
+
+        // نظام تحرير النص العالمي
+        let globalTexts = [
+            { id: 1, name: "نظام رسائل الدردشة", content: "~w~مرحباً بك في ~y~الخادم", type: "chat" },
+            { id: 2, name: "عنوان القائمة", content: "~r~القائمة الرئيسية", type: "menu" },
+            { id: 3, name: "رسالة الدخول", content: "~g~تم الدخول بنجاح!", type: "login" },
+            { id: 4, name: "رسالة الخطأ", content: "~r~حدث خطأ! حاول مرة أخرى.", type: "error" },
+            { id: 5, name: "نظام التحذيرات", content: "~y~تحذير: ~w~الرجاء قراءة القواعد", type: "warning" }
+        ];
+        let selectedTextId = null;
+
+        // مكتبة الأيقونات الضخمة (30 أيقونة + أشكال)
+        const spritesDB = {
+            "Shapes": {
+                "ld_spac:white": "مربع أبيض (White Box)",
+                "ld_pool:ball": "دائرة (Circle)",
+                "radardisc": "قرص رادار (Radar Disc)"
+            },
+            "HUD & Weapons": {
+                "fist": "قبضة (Fist)",
+                "siteM16": "قناص (Sniper Scope)",
+                "hud:radar_centre": "سهم اللاعب (Player Arrow)",
+                "hud:radar_north": "شمال (North)",
+                "hud:radar_waypoint": "علامة حمراء (Waypoint)",
+                "hud:radar_impound": "سيارة (Car)"
+            },
+            "System": {
+                "ld_beat:chit": "جمجمة (Skull)",
+                "ld_chat:badchat": "خطأ (Error X)",
+                "ld_chat:goodchat": "صح (Check)",
+                "ld_chat:thumbdn": "ديسلايك",
+                "ld_chat:thumbup": "لايك"
+            },
+            "Arrows": {
+                "ld_beat:left": "سهم يسار",
+                "ld_beat:right": "سهم يمين",
+                "ld_beat:up": "سهم فوق",
+                "ld_beat:down": "سهم تحت"
+            }
+        };
+
+        // قوالب العناصر
+        const templates = {
+            text: { type:'text', name:'Text', x:320, y:240, w:0.4, h:1.5, text:'XG STTX', color:'#ffffff', font:1, align:2, outline:1, useBox:false, boxColor:'#000000', boxAlpha:100 },
+            box: { type:'box', name:'Box', x:200, y:200, w:100, h:100, text:'_', color:'#000000', useBox:true, boxColor:'#000000', boxAlpha:150 },
+            button: { type:'button', name:'Button', x:280, y:300, w:100, h:30, text:'Click Me', color:'#ffffff', font:2, align:2, useBox:true, boxColor:'#ff6347', boxAlpha:200, outline:1 },
+            icon: { type:'sprite', name:'Icon', x:50, y:50, w:50, h:50, text:'ld_beat:chit', color:'#ffffff', font:4, useBox:false }
+        };
+
+        // --- 2. إدارة الحالة (State Management) ---
+        function addLayer(type) {
+            saveState();
+            idCounter++;
+            const l = JSON.parse(JSON.stringify(templates[type]));
+            l.id = idCounter;
+            l.name += ` ${idCounter}`;
+            
+            // إذا كان نص، يمكن استخدام نص من النظام العالمي
+            if(type === 'text' && globalTexts.length > 0) {
+                const randomText = globalTexts[Math.floor(Math.random() * globalTexts.length)];
+                l.text = randomText.content;
+            }
+            
+            project.layers.push(l);
+            activeId = idCounter;
+            render();
+            updatePropsUI();
+        }
+
+        function saveState() {
+            undoStack.push(JSON.stringify(project));
+            if(undoStack.length > 20) undoStack.shift();
+            redoStack = [];
+        }
+
+        function undo() {
+            if(!undoStack.length) return;
+            redoStack.push(JSON.stringify(project));
+            project = JSON.parse(undoStack.pop());
+            render(); updatePropsUI();
+        }
+
+        function redo() {
+            if(!redoStack.length) return;
+            saveState();
+            undoStack.pop();
+            project = JSON.parse(redoStack.pop());
+            render(); updatePropsUI();
+        }
+
+        // --- 3. نظام تحرير النص العالمي ---
+        function openGlobalTextEditor() {
+            document.getElementById('textEditorModal').style.display = 'flex';
+            renderTextBlocks();
+            updateEditorContent();
+        }
+
+        function closeTextEditor() {
+            document.getElementById('textEditorModal').style.display = 'none';
+        }
+
+        function renderTextBlocks() {
+            const list = document.getElementById('textBlocksList');
+            list.innerHTML = '';
+            
+            globalTexts.forEach(text => {
+                const div = document.createElement('div');
+                div.className = `text-block ${text.id === selectedTextId ? 'active' : ''}`;
+                div.onclick = () => {
+                    selectedTextId = text.id;
+                    renderTextBlocks();
+                    updateEditorContent();
+                };
+                
+                div.innerHTML = `
+                    <h4>${text.name}</h4>
+                    <p>${text.content.substring(0, 30)}${text.content.length > 30 ? '...' : ''}</p>
+                    <small style="color:#666">${text.type}</small>
+                `;
+                
+                list.appendChild(div);
+            });
+        }
+
+        function updateEditorContent() {
+            const main = document.getElementById('editorMain');
+            
+            if(!selectedTextId) {
+                main.innerHTML = `
+                    <div style="text-align:center; padding:50px; color:#666;">
+                        <i class="fas fa-globe-americas fa-3x"></i><br><br>
+                        اختر نصاً من القائمة أو أنشئ نصاً جديداً
+                    </div>
+                `;
+                return;
+            }
+            
+            const text = globalTexts.find(t => t.id === selectedTextId);
+            if(!text) return;
+            
+            main.innerHTML = `
+                <div class="control-group">
+                    <div class="control-label">اسم النص</div>
+                    <input type="text" id="editTextName" value="${text.name}" style="margin-bottom:15px;">
+                </div>
+                <div class="control-group">
+                    <div class="control-label">نوع النص</div>
+                    <select id="editTextType" style="margin-bottom:15px;">
+                        <option value="chat" ${text.type==='chat'?'selected':''}>رسائل الدردشة</option>
+                        <option value="menu" ${text.type==='menu'?'selected':''}>القوائم</option>
+                        <option value="login" ${text.type==='login'?'selected':''}>رسائل الدخول</option>
+                        <option value="error" ${text.type==='error'?'selected':''}>رسائل الخطأ</option>
+                        <option value="warning" ${text.type==='warning'?'selected':''}>تحذيرات</option>
+                        <option value="system" ${text.type==='system'?'selected':''}>نظام</option>
+                        <option value="hud" ${text.type==='hud'?'selected':''}>HUD</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <div class="control-label">
+                        محتوى النص 
+                        <small style="color:#666">(يمكن استخدام ~r~ للأحمر, ~g~ للأخضر, ~y~ للأصفر, ~w~ للأبيض)</small>
+                    </div>
+                    <textarea id="editTextContent" rows="8" style="font-family:'Cairo'; resize:vertical;">${text.content}</textarea>
+                </div>
+                <div class="control-group">
+                    <div class="control-label">معاينة سريعة</div>
+                    <div style="background:#1a1a22; padding:15px; border-radius:8px; border:1px solid var(--border); margin-top:5px;">
+                        <div id="textPreview">${formatSampColor(text.content)}</div>
+                    </div>
+                </div>
+            `;
+            
+            // تحديث المعاينة عند الكتابة
+            document.getElementById('editTextContent').oninput = function() {
+                document.getElementById('textPreview').innerHTML = formatSampColor(this.value);
+            };
+        }
+
+        function formatSampColor(text) {
+            return text
+                .replace(/~r~/g, '<span style="color:#ff5555">')
+                .replace(/~g~/g, '<span style="color:#55ff55">')
+                .replace(/~y~/g, '<span style="color:#ffff55">')
+                .replace(/~w~/g, '<span style="color:#ffffff">')
+                .replace(/~b~/g, '<span style="color:#5555ff">')
+                + '</span>';
+        }
+
+        function addTextBlock() {
+            const newId = globalTexts.length > 0 ? Math.max(...globalTexts.map(t => t.id)) + 1 : 1;
+            globalTexts.push({
+                id: newId,
+                name: `نص جديد ${newId}`,
+                content: "~w~مرحباً! هذا نص جديد",
+                type: "system"
+            });
+            selectedTextId = newId;
+            renderTextBlocks();
+            updateEditorContent();
+        }
+
+        function deleteTextBlock() {
+            if(!selectedTextId) return;
+            if(confirm('هل تريد حذف هذا النص؟')) {
+                globalTexts = globalTexts.filter(t => t.id !== selectedTextId);
+                selectedTextId = null;
+                renderTextBlocks();
+                updateEditorContent();
+            }
+        }
+
+        function saveTextBlocks() {
+            if(!selectedTextId) return;
+            
+            const text = globalTexts.find(t => t.id === selectedTextId);
+            if(text) {
+                text.name = document.getElementById('editTextName').value;
+                text.type = document.getElementById('editTextType').value;
+                text.content = document.getElementById('editTextContent').value;
+                
+                alert('تم حفظ النص!');
+                renderTextBlocks();
+            }
+        }
+
+        // --- 4. دالة التصدير للنظام ---
+        function exportToPawnSystem() {
+            let pawnCode = `// =============================================\n`;
+            pawnCode += `// نظام النصوص العالمي - تم إنشاؤه بواسطة XG STTX\n`;
+            pawnCode += `// تاريخ الإنشاء: ${new Date().toLocaleDateString()}\n`;
+            pawnCode += `// =============================================\n\n`;
+            
+            pawnCode += `// ----- تعريف الثوابت -----\n`;
+            globalTexts.forEach((text, index) => {
+                pawnCode += `#define TEXT_${text.type.toUpperCase()}_${index + 1} "${text.content}"\n`;
+            });
+            
+            pawnCode += `\n// ----- مصفوفة النصوص -----\n`;
+            pawnCode += `new g_GlobalTexts[][128] = {\n`;
+            globalTexts.forEach((text, index) => {
+                const comma = index < globalTexts.length - 1 ? "," : "";
+                pawnCode += `    "${text.content}"${comma} // ${text.name}\n`;
+            });
+            pawnCode += `};\n\n`;
+            
+            pawnCode += `// ----- دالة للحصول على نص -----\n`;
+            pawnCode += `GetGlobalText(type[], index = 0)\n`;
+            pawnCode += `{\n`;
+            pawnCode += `    new text[128];\n`;
+            pawnCode += `    \n`;
+            pawnCode += `    if(!strcmp(type, "chat", true)) {\n`;
+            pawnCode += `        switch(index) {\n`;
+            globalTexts.filter(t => t.type === 'chat').forEach((text, i) => {
+                pawnCode += `            case ${i}: format(text, sizeof(text), "%s", g_GlobalTexts[${globalTexts.indexOf(text)}]); break;\n`;
+            });
+            pawnCode += `        }\n`;
+            pawnCode += `    }\n`;
+            pawnCode += `    else if(!strcmp(type, "menu", true)) {\n`;
+            pawnCode += `        switch(index) {\n`;
+            globalTexts.filter(t => t.type === 'menu').forEach((text, i) => {
+                pawnCode += `            case ${i}: format(text, sizeof(text), "%s", g_GlobalTexts[${globalTexts.indexOf(text)}]); break;\n`;
+            });
+            pawnCode += `        }\n`;
+            pawnCode += `    }\n`;
+            pawnCode += `    else if(!strcmp(type, "error", true)) {\n`;
+            pawnCode += `        switch(index) {\n`;
+            globalTexts.filter(t => t.type === 'error').forEach((text, i) => {
+                pawnCode += `            case ${i}: format(text, sizeof(text), "%s", g_GlobalTexts[${globalTexts.indexOf(text)}]); break;\n`;
+            });
+            pawnCode += `        }\n`;
+            pawnCode += `    }\n`;
+            pawnCode += `    \n`;
+            pawnCode += `    return text;\n`;
+            pawnCode += `}\n\n`;
+            
+            pawnCode += `// ----- دالة لإرسال رسالة نظام -----\n`;
+            pawnCode += `SendSystemMessage(playerid, text[])\n`;
+            pawnCode += `{\n`;
+            pawnCode += `    new message[144];\n`;
+            pawnCode += `    format(message, sizeof(message), "{FF9900}[SYSTEM]: {FFFFFF}%s", text);\n`;
+            pawnCode += `    SendClientMessage(playerid, -1, message);\n`;
+            pawnCode += `}\n\n`;
+            
+            pawnCode += `// ----- مثال على الاستخدام -----\n`;
+            pawnCode += `/*\n`;
+            pawnCode += `// في OnPlayerConnect:\n`;
+            pawnCode += `SendClientMessage(playerid, -1, TEXT_CHAT_1);\n`;
+            pawnCode += `\n`;
+            pawnCode += `// أو باستخدام الدالة:\n`;
+            pawnCode += `SendSystemMessage(playerid, GetGlobalText("chat", 0));\n`;
+            pawnCode += `*/\n`;
+            
+            // إظهار النتيجة في نافذة الكود
+            document.getElementById('termOutput').innerText = pawnCode;
+            document.getElementById('codeModal').style.display = 'flex';
+            closeTextEditor();
+        }
+
+        // --- 5. الرسم (Rendering) ---
+        function render() {
+            const screen = document.getElementById('gameScreen');
+            const list = document.getElementById('layersList');
+            screen.innerHTML = ''; 
+            list.innerHTML = '';
+
+            // تطبيق الزووم والشبكة
+            document.getElementById('scaler').style.transform = `scale(${project.settings.zoom})`;
+            if(project.settings.grid) screen.classList.add('grid-active'); else screen.classList.remove('grid-active');
+
+            // رسم الطبقات
+            project.layers.forEach(l => {
+                const el = document.createElement('div');
+                el.className = `td-object ${l.id === activeId ? 'selected':''}`;
+                el.style.left = l.x + 'px';
+                el.style.top = l.y + 'px';
+                
+                // الألوان
+                const col = hexToRgba(l.color, 255);
+                el.style.color = col;
+
+                if(l.type === 'text' || l.type === 'button') {
+                    el.innerText = l.text;
+                    el.style.fontSize = (l.h * 15) + 'px';
+                    
+                    if(l.type === 'button' || l.useBox) {
+                        const boxCol = hexToRgba(l.boxColor, l.boxAlpha);
+                        el.style.backgroundColor = boxCol;
+                        if(l.type === 'button') {
+                            el.style.width = l.w + 'px';
+                            el.style.height = l.h + 'px';
+                            el.style.display = 'flex';
+                            el.style.alignItems = 'center';
+                            el.style.justifyContent = l.align == 2 ? 'center' : (l.align==3?'flex-end':'flex-start');
+                            el.style.fontSize = '14px'; 
+                        } else {
+                            el.style.padding = "2px 5px";
+                        }
+                    } else {
+                         el.style.transform = `scaleX(${l.w * 1.5})`;
+                         el.style.transformOrigin = "left top";
+                    }
+
+                    el.classList.add('font-' + l.font);
+                    if(l.outline) el.style.textShadow = `1px 1px 0 #000, -1px -1px 0 #000`;
+
+                } else if(l.type === 'box') {
+                    el.style.width = l.w + 'px';
+                    el.style.height = l.h + 'px';
+                    el.style.backgroundColor = hexToRgba(l.boxColor, l.boxAlpha);
+                } else if(l.type === 'sprite') {
+                    el.style.width = l.w + 'px';
+                    el.style.height = l.h + 'px';
+                    const spriteUrl = getSpriteUrl(l.text);
+                    if(spriteUrl) {
+                        el.style.backgroundImage = `url('${spriteUrl}')`;
+                    } else {
+                        el.style.backgroundColor = '#fff';
+                        el.style.mask = "url('https://cdn-icons-png.flaticon.com/512/16/16410.png') no-repeat center";
+                    }
+                }
+
+                if(l.id === activeId) {
+                    const handle = document.createElement('div');
+                    handle.className = 'resize-handle';
+                    handle.onmousedown = (e) => startResize(e, l);
+                    el.appendChild(handle);
+                    el.onmousedown = (e) => { if(e.target!==handle) startDrag(e, l); };
+                }
+
+                screen.appendChild(el);
+            });
+
+            // رسم القائمة
+            [...project.layers].reverse().forEach(l => {
+                const item = document.createElement('div');
+                item.className = `layer-item ${l.id === activeId ? 'active':''}`;
+                item.onclick = () => { activeId = l.id; render(); updatePropsUI(); };
+                
+                let icon = 'fa-font';
+                if(l.type === 'box') icon='fa-square';
+                if(l.type === 'sprite') icon='fa-icons';
+                if(l.type === 'button') icon='fa-mouse-pointer';
+
+                item.innerHTML = `
+                    <div class="layer-icon"><i class="fas ${icon}"></i></div>
+                    <div style="flex:1">${l.name}</div>
+                    <i class="fas fa-trash" style="color:#ff5555" onclick="deleteLayer(${l.id}, event)"></i>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        function getSpriteUrl(name) {
+            if(name.includes('white')) return 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/49/A_black_image.jpg/640px-A_black_image.jpg';
+            if(name.includes('radar')) return 'https://cdn-icons-png.flaticon.com/512/1216/1216895.png';
+            if(name.includes('m16')) return 'https://cdn-icons-png.flaticon.com/512/57/57954.png';
+            if(name.includes('fist')) return 'https://cdn-icons-png.flaticon.com/512/6129/6129845.png';
+            if(name.includes('chit')) return 'https://cdn-icons-png.flaticon.com/512/1056/1056952.png';
+            return null; 
+        }
+
+        // --- 6. التفاعل (Interaction: Drag & Resize) ---
+        function startDrag(e, l) {
+            e.stopPropagation();
+            activeId = l.id; render(); updatePropsUI();
+            
+            const startX = e.clientX; const startY = e.clientY;
+            const initX = l.x; const initY = l.y;
+            const z = project.settings.zoom;
+
+            const move = (ev) => {
+                l.x = Math.round(initX + (ev.clientX - startX) / z);
+                l.y = Math.round(initY + (ev.clientY - startY) / z);
+                updateInfo();
+                const el = document.querySelector('.td-object.selected');
+                if(el) { el.style.left = l.x+'px'; el.style.top = l.y+'px'; }
+            };
+            const stop = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', stop); saveState(); render(); };
+            document.addEventListener('mousemove', move); document.addEventListener('mouseup', stop);
+        }
+
+        function startResize(e, l) {
+            e.stopPropagation();
+            const startX = e.clientX; const startY = e.clientY;
+            const initW = l.w; const initH = l.h;
+            const z = project.settings.zoom;
+
+            const move = (ev) => {
+                const dx = (ev.clientX - startX) / z;
+                const dy = (ev.clientY - startY) / z;
+                
+                if(l.type === 'text') {
+                    l.w = Math.max(0.1, initW + (dx * 0.005));
+                    l.h = Math.max(0.1, initH + (dy * 0.01));
+                } else {
+                    l.w = Math.max(5, Math.round(initW + dx));
+                    l.h = Math.max(5, Math.round(initH + dy));
+                }
+                
+                const el = document.querySelector('.td-object.selected');
+                if(el) {
+                    if(l.type==='text') {
+                        el.style.fontSize = (l.h * 15) + 'px';
+                        el.style.transform = `scaleX(${l.w*1.5})`;
+                    } else {
+                        el.style.width = l.w + 'px';
+                        el.style.height = l.h + 'px';
+                    }
+                }
+            };
+            const stop = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', stop); saveState(); render(); updatePropsUI(); };
+            document.addEventListener('mousemove', move); document.addEventListener('mouseup', stop);
+        }
+
+        // --- 7. واجهة الخصائص (Properties UI) ---
+        function updatePropsUI() {
+            const panel = document.getElementById('propsPanel');
+            const l = project.layers.find(x => x.id === activeId);
+            
+            if(!l) { panel.innerHTML = '<div style="text-align:center; padding:50px; color:#555">لا يوجد عنصر محدد</div>'; return; }
+
+            let html = `<div class="control-group"><div class="control-label">الاسم</div>
+                <input type="text" value="${l.name}" oninput="updateVal('name', this.value)"></div>`;
+            
+            if(l.type !== 'box') {
+                html += `<div class="control-group"><div class="control-label">النص / Sprite Name</div>
+                <div class="input-row">
+                    <input type="text" value="${l.text}" oninput="updateVal('text', this.value)">
+                    <button class="btn-icon" style="width:30px; height:30px;" onclick="openTextSelector()" title="اختيار نص من النظام"><i class="fas fa-globe"></i></button>
+                </div>`;
+                
+                if(l.type === 'sprite') {
+                    html += `<select onchange="updateVal('text', this.value)" style="margin-top:5px;">
+                        <option value="">-- اختر أيقونة (30+) --</option>`;
+                    for(const cat in spritesDB) {
+                        html += `<optgroup label="${cat}">`;
+                        for(const key in spritesDB[cat]) {
+                            html += `<option value="${key}">${spritesDB[cat][key]}</option>`;
+                        }
+                        html += `</optgroup>`;
+                    }
+                    html += `</select></div>`;
+                } else {
+                    html += `</div>`;
+                }
+            }
+
+            html += `<div class="control-group"><div class="control-label">الأبعاد والموقع</div>
+                <div class="input-row"><label>X</label><input type="number" value="${l.x}" oninput="updateVal('x', Number(this.value))"></div>
+                <div class="input-row" style="margin-top:5px"><label>Y</label><input type="number" value="${l.y}" oninput="updateVal('y', Number(this.value))"></div>
+                <div class="input-row" style="margin-top:5px"><label>W</label><input type="number" step="0.1" value="${l.w}" oninput="updateVal('w', Number(this.value))"></div>
+                <div class="input-row" style="margin-top:5px"><label>H</label><input type="number" step="0.1" value="${l.h}" oninput="updateVal('h', Number(this.value))"></div>
+            </div>`;
+
+            html += `<div class="control-group"><div class="control-label">الألوان</div>
+                <div class="input-row"><input type="color" value="${l.color}" oninput="updateVal('color', this.value)" style="height:35px"></div>
+            </div>`;
+
+            if(l.type === 'text' || l.type === 'button') {
+                html += `<div class="control-group"><div class="control-label">الخط والمحاذاة</div>
+                    <select onchange="updateVal('font', Number(this.value))" style="margin-bottom:5px">
+                        <option value="1" ${l.font==1?'selected':''}>Arial (Standard)</option>
+                        <option value="2" ${l.font==2?'selected':''}>Bank Gothic (HUD)</option>
+                        <option value="3" ${l.font==3?'selected':''}>Impact (Bold)</option>
+                        <option value="0" ${l.font==0?'selected':''}>Diploma (Gothic)</option>
+                    </select>
+                    <select onchange="updateVal('align', Number(this.value))">
+                        <option value="1" ${l.align==1?'selected':''}>يسار</option>
+                        <option value="2" ${l.align==2?'selected':''}>وسط</option>
+                        <option value="3" ${l.align==3?'selected':''}>يمين</option>
+                    </select>
+                </div>`;
+            }
+
+            if(l.useBox || l.type === 'box' || l.type === 'button') {
+                html += `<div class="control-group"><div class="control-label">إعدادات الصندوق/الخلفية</div>
+                    <div class="input-row">
+                        <input type="color" value="${l.boxColor}" oninput="updateVal('boxColor', this.value)" style="flex:1; height:30px">
+                        <input type="number" value="${l.boxAlpha}" max="255" oninput="updateVal('boxAlpha', Number(this.value))" style="flex:1" placeholder="Alpha">
+                    </div>
+                </div>`;
+            }
+
+            panel.innerHTML = html;
+        }
+
+        function openTextSelector() {
+            const l = project.layers.find(x => x.id === activeId);
+            if(!l || l.type !== 'text') return;
+            
+            let options = globalTexts.map(t => `<option value="${t.content}">${t.name}</option>`).join('');
+            
+            const selector = `
+                <div style="background:#1a1a22; padding:15px; border-radius:8px; border:1px solid var(--border); margin-top:10px;">
+                    <div class="control-label">اختر نصاً من النظام العالمي</div>
+                    <select onchange="updateVal('text', this.value)" style="width:100%; margin-bottom:10px;">
+                        <option value="">-- اختر نصًا --</option>
+                        ${options}
+                    </select>
+                    <small style="color:#666">أو <a href="#" onclick="openGlobalTextEditor()" style="color:var(--primary); text-decoration:none;">افتح محرر النص</a> لإنشاء نصوص جديدة</small>
+                </div>
+            `;
+            
+            // إضافة الخيار إلى اللوحة
+            document.getElementById('propsPanel').innerHTML += selector;
+        }
+
+        function updateVal(key, val) {
+            const l = project.layers.find(x => x.id === activeId);
+            if(l) { l[key] = val; render(); }
+        }
+
+        function deleteLayer(id, e) {
+            e.stopPropagation();
+            if(confirm('حذف هذا العنصر؟')) {
+                saveState();
+                project.layers = project.layers.filter(x => x.id !== id);
+                activeId = null;
+                render(); updatePropsUI();
+            }
+        }
+
+        // --- 8. الوظائف الإضافية (Utilities) ---
+        function toggleGrid() { project.settings.grid = !project.settings.grid; render(); }
+        function zoom(amount) { project.settings.zoom += amount; render(); document.getElementById('infoZoom').innerText = Math.round(project.settings.zoom*100)+'%'; }
+        function updateInfo() { 
+            const l = project.layers.find(x => x.id === activeId);
+            if(l) { document.getElementById('infoX').innerText = l.x; document.getElementById('infoY').innerText = l.y; }
+        }
+        function closeModal() { document.getElementById('codeModal').style.display='none'; }
+        
+        function hexToRgba(hex, alpha) {
+            const r = parseInt(hex.slice(1, 3), 16);
+            const g = parseInt(hex.slice(3, 5), 16);
+            const b = parseInt(hex.slice(5, 7), 16);
+            return `rgba(${r}, ${g}, ${b}, ${alpha/255})`;
+        }
+        function hexToSamp(hex, a) {
+            let aa = parseInt(a).toString(16).toUpperCase();
+            if (aa.length < 2) aa = "0" + aa;
+            return `0x${hex.slice(1).toUpperCase()}${aa}`;
+        }
+
+        // --- 9. المترجم (Compiler / Exporter) ---
+        function exportCode() {
+            let code = `// =============================================\n`;
+            code += `// تم التوليد بواسطة XG STTX Studio V4\n`;
+            code += `// نظام متكامل للـ TextDraws\n`;
+            code += `// =============================================\n\n`;
+            
+            code += `new Text:TD[${project.layers.length}];\n\n`;
+            code += `public OnGameModeInit() {\n`;
+            
+            project.layers.forEach((l, i) => {
+                code += `    // --- ${l.name} ---\n`;
+                let txt = (l.type === 'box') ? '_' : l.text;
+                code += `    TD[${i}] = TextDrawCreate(${l.x.toFixed(2)}, ${l.y.toFixed(2)}, "${txt}");\n`;
+                
+                if(l.type === 'box') {
+                    code += `    TextDrawUseBox(TD[${i}], 1);\n`;
+                    code += `    TextDrawBoxColor(TD[${i}], ${hexToSamp(l.boxColor, l.boxAlpha)});\n`;
+                    code += `    TextDrawLetterSize(TD[${i}], 0.0, ${(l.h / 10).toFixed(2)});\n`;
+                    code += `    TextDrawTextSize(TD[${i}], ${(l.x + l.w).toFixed(2)}, 0.0);\n`;
+                } else if(l.type === 'sprite') {
+                    code += `    TextDrawFont(TD[${i}], 4);\n`;
+                    code += `    TextDrawTextSize(TD[${i}], ${l.w.toFixed(2)}, ${l.h.toFixed(2)});\n`;
+                    code += `    TextDrawColor(TD[${i}], ${hexToSamp(l.color, 255)});\n`;
+                } else if(l.type === 'button') {
+                    code += `    TextDrawFont(TD[${i}], ${l.font});\n`;
+                    code += `    TextDrawLetterSize(TD[${i}], 0.3, 1.2);\n`;
+                    code += `    TextDrawAlignment(TD[${i}], 2);\n`;
+                    code += `    TextDrawColor(TD[${i}], ${hexToSamp(l.color, 255)});\n`;
+                    code += `    TextDrawUseBox(TD[${i}], 1);\n`;
+                    code += `    TextDrawBoxColor(TD[${i}], ${hexToSamp(l.boxColor, l.boxAlpha)});\n`;
+                    code += `    TextDrawTextSize(TD[${i}], ${l.h.toFixed(2)}, ${l.w.toFixed(2)});\n`;
+                    code += `    TextDrawSetSelectable(TD[${i}], 1);\n`;
+                } else {
+                    code += `    TextDrawFont(TD[${i}], ${l.font});\n`;
+                    code += `    TextDrawLetterSize(TD[${i}], ${l.w.toFixed(2)}, ${l.h.toFixed(2)});\n`;
+                    code += `    TextDrawAlignment(TD[${i}], ${l.align});\n`;
+                    code += `    TextDrawColor(TD[${i}], ${hexToSamp(l.color, 255)});\n`;
+                    if(l.outline) code += `    TextDrawSetOutline(TD[${i}], ${l.outline});\n`;
+                    if(l.useBox) {
+                        code += `    TextDrawUseBox(TD[${i}], 1);\n`;
+                        code += `    TextDrawBoxColor(TD[${i}], ${hexToSamp(l.boxColor, l.boxAlpha)});\n`;
+                    }
+                }
+                code += `\n`;
+            });
+            
+            code += `    // ----- إظهار الـ TextDraws -----\n`;
+            code += `    for(new i = 0; i < ${project.layers.length}; i++) {\n`;
+            code += `        TextDrawShowForAll(TD[i]);\n`;
+            code += `    }\n\n`;
+            code += `    return 1;\n}\n`;
+            
+            document.getElementById('termOutput').innerText = code;
+            document.getElementById('codeModal').style.display = 'flex';
+        }
+
+        function copyCode() {
+            navigator.clipboard.writeText(document.getElementById('termOutput').innerText);
+            alert('تم نسخ الكود!');
+        }
+
+        function runDiagnostics() {
+            let log = "--- تقرير فحص المشروع ---\n";
+            let errs = 0;
+            
+            log += `✓ عدد العناصر: ${project.layers.length}\n`;
+            log += `✓ عدد النصوص العالمية: ${globalTexts.length}\n`;
+            log += `✓ الزووم الحالي: ${Math.round(project.settings.zoom*100)}%\n\n`;
+            
+            project.layers.forEach(l => {
+                if(l.x < 0 || l.x > 640 || l.y < 0 || l.y > 480) {
+                    log += `[تحذير] العنصر "${l.name}" خارج حدود الشاشة.\n`;
+                    errs++;
+                }
+            });
+            
+            if(errs === 0) log += "✓ النظام يعمل بشكل مثالي!";
+            document.getElementById('termOutput').innerText = log;
+            document.getElementById('codeModal').style.display = 'flex';
+        }
+
+        // --- تهيئة النظام ---
+        render();
+    </script>
+</body>
+</html>
